@@ -11,8 +11,13 @@
 
 #include <ompl/base/State.h>
 
+#include <ompl/base/spaces/RealVectorStateSpace.h>
+#include <ompl/control/spaces/RealVectorControlSpace.h>
+#include <ompl/base/spaces/RealVectorBounds.h>
 #include <ompl/control/SimpleSetup.h>
 #include <ompl/control/ODESolver.h>
+#include <ompl/extensions/ode/OpenDESimpleSetup.h>
+#include <ompl/control/planners/rrt/RRT.h>
 
 // Your implementation of RG-RRT
 #include "RG-RRT.h"
@@ -46,8 +51,6 @@ void pendulumODE(const ompl::control::ODESolver::StateType & q , const ompl::con
     const double *u = control->as<ompl::control::RealVectorControlSpace::ControlType>()->values;
     const double torque = u[0];
 
- 
-
     const double theta = q[0];
     const double angular = q[1];
  
@@ -67,20 +70,24 @@ ompl::control::SimpleSetupPtr createPendulum(double torque )
     // construct the state space we are planning in
 
     auto space(std::make_shared<ompl::base::RealVectorStateSpace>(2));
-    // ob::RealVectorBounds bounds(2);
-    // bounds.setLow(-1);
-    // bounds.setHigh(3);
+    ob::RealVectorBounds bounds(2);
+    bounds.setLow(-20);
+    bounds.setHigh(20);
+    space->setBounds(bounds);
 
-    oc::ControlSpacePtr cm = std::make_shared<oc::RealVectorControlSpace>(space,1);
-    oc::RealVectorBounds cbounds(1);
+    auto cm = std::make_shared<oc::RealVectorControlSpace>(space,1);
+    ob::RealVectorBounds cbounds(1);
     cbounds.setLow(-torque);
     cbounds.setHigh(torque);
 
     cm->setBounds(cbounds);
 
-    oc::OpenDESimpleSetup ss(cm);
+    oc::SimpleSetup ss(cm);
+    oc::SpaceInformation *si = ss.getSpaceInformation().get();
+    ss.setStateValidityChecker([si](const ob::State *state) {return validityChecker(state,si);});
 
-    ss.setStateValidityChecker([](const ob::State *state) {return validityChecker(state);});
+    auto odeSolver(std::make_shared<oc::ODEBasicSolver<>>(ss.getSpaceInformation(), &pendulumODE));
+    ss.setStatePropagator(oc::ODESolver::getStatePropagator(odeSolver));
 
     ompl::base::ScopedState<ompl::base::RealVectorStateSpace> start(space);
     start[0] = -1.5707;
@@ -95,7 +102,7 @@ ompl::control::SimpleSetupPtr createPendulum(double torque )
 
     return ss;
 }
-bool validityChecker(const oc::State *state){
+bool validityChecker(const ompl::base::State *state, ompl::control::SpaceInformation *spaceinfo){
     const ompl::base::RealVectorStateSpace::StateType* R2State = state->as<ompl::base::RealVectorStateSpace::StateType>();
     double theta = R2State->values[0];
     double angular = R2State->values[1];
@@ -104,6 +111,7 @@ bool validityChecker(const oc::State *state){
 
 void planPendulum(ompl::control::SimpleSetupPtr & ss, int /* choice */)
 {
+    &ss = ss.get();
     namespace ob = ompl::base;
     // TODO: Do some motion planning for the pendulum
     // choice is what planner to use.
