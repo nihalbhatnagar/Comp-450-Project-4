@@ -1,7 +1,7 @@
 ///////////////////////////////////////
 // COMP/ELEC/MECH 450/550
 // Project 4
-// Authors: FILL ME OUT!!
+// Authors: Parv Shrivastava and Nihal Bhatnagar
 //////////////////////////////////////
 
 #include <iostream>
@@ -35,20 +35,20 @@ public:
 
     unsigned int getDimension() const override
     {
-        // TODO: The dimension of your projection for the pendulum
         return 2;
     }
 
     void project(const ompl::base::State */* state */, Eigen::Ref<Eigen::VectorXd> /* projection */) const override
     {
-        // TODO: Your projection for the pendulu
+        // TODO: Your projection for the pendulum
     }
 };
-bool isStateValid(const ompl::control::SpaceInformation *si, const ompl::base::State *state){
+
+bool isStateValid(const ompl::control::SpaceInformation * /* si */, const ompl::base::State *state){
     const ompl::base::RealVectorStateSpace::StateType* R2State = state->as<ompl::base::RealVectorStateSpace::StateType>();
-    double theta = R2State->values[0];
+    // double theta = R2State->values[0];
     double angular = R2State->values[1];
-    return abs(angular) < 500;
+    return abs(angular) <= 10;
 }
 
 void pendulumODE(const ompl::control::ODESolver::StateType & q , const ompl::control::Control * control ,
@@ -71,12 +71,10 @@ void pendulumODE(const ompl::control::ODESolver::StateType & q , const ompl::con
 
 ompl::control::SimpleSetupPtr createPendulum(double torque )
 {
-    // TODO: Create and setup the pendulum's state space, control space, validity checker, everything you need for
-    // planning.
     namespace ob = ompl::base;
     namespace oc = ompl::control;
+    
     // construct the state space we are planning in
-
     auto space(std::make_shared<ompl::base::RealVectorStateSpace>(2));
     ob::RealVectorBounds bounds(2);
     bounds.setLow(-20);
@@ -90,12 +88,12 @@ ompl::control::SimpleSetupPtr createPendulum(double torque )
 
     cm->setBounds(cbounds);
 
-    oc::SimpleSetup ss(cm);
-    oc::SpaceInformation *si = ss.getSpaceInformation().get();
-    ss.setStateValidityChecker(
+    oc::SimpleSetupPtr ss(new oc::SimpleSetup(cm));
+    oc::SpaceInformation *si = ss->getSpaceInformation().get();
+    ss->setStateValidityChecker(
          [si](const ob::State *state) { return isStateValid(si, state); });
-    auto odeSolver(std::make_shared<oc::ODEBasicSolver<>>(ss.getSpaceInformation(), &pendulumODE));
-    ss.setStatePropagator(oc::ODESolver::getStatePropagator(odeSolver));
+    auto odeSolver(std::make_shared<oc::ODEBasicSolver<>>(ss->getSpaceInformation(), &pendulumODE));
+    ss->setStatePropagator(oc::ODESolver::getStatePropagator(odeSolver));
 
     ompl::base::ScopedState<ompl::base::RealVectorStateSpace> start(space);
     start[0] = -1.5707;
@@ -106,53 +104,34 @@ ompl::control::SimpleSetupPtr createPendulum(double torque )
     goal[0] = 1.5707;
     goal[1] = 0;
 
-    ss.setStartAndGoalStates(start, goal,1);
+    ss->setStartAndGoalStates(start, goal,1);
 
-    //return ss;
+    return ss;
+}
 
-    auto planner = std::make_shared<ompl::control::KPIECE1>(ss.getSpaceInformation());
-    ss.setPlanner(planner);
+void planPendulum(ompl::control::SimpleSetupPtr &ss, int choice)
+{
+    std::string filePath;
+    if (choice == 1) {
+        ss->setPlanner(std::make_shared<ompl::control::RRT>(ss->getSpaceInformation()));
+        filePath = "pendulumPathRRT.txt";
+    } else if (choice == 2) {
+        ss->setPlanner(std::make_shared<ompl::control::KPIECE1>(ss->getSpaceInformation()));
+        filePath = "pendulumPathKPIECE1.txt";
+    }
 
-
-    // auto planner = std::make_shared<ompl::control::RRT>(ss.getSpaceInformation());
-    // ss.setPlanner(planner);
-
-
-    ob::PlannerStatus solved = ss.solve(1.0);
-
+    ss->setup();
+    ompl::base::PlannerStatus solved = ss->solve(1.0);
+    
     if(solved)
     {
         std::cout << "Found solution:" << std::endl;
-        ss.getSolutionPath().print(std::cout);
-        std::ofstream file("src/pendulumPath.txt");
-        ss.getSolutionPath().asGeometric().printAsMatrix(file);
+        ss->getSolutionPath().print(std::cout);
+        std::ofstream file(filePath);
+        ss->getSolutionPath().asGeometric().printAsMatrix(file);
         file.close();
     }
-    
 }
-
-
-// void planPendulum(ompl::control::SimpleSetupPtr & s, int /* choice */)
-// {
-//     auto ss = *s;
-//     namespace ob = ompl::base;
-//     // TODO: Do some motion planning for the pendulum
-//     // choice is what planner to use.
-//     // RTP planner(space)
-//     // auto planner = std::make_shared<ompl::control::RRT>(ss.getSpaceInformation());
-//     // ss.setPlanner(planner);
-
-//     // ob::PlannerStatus solved = ss.solve(1.0);
-
-//     // if(solved)
-//     // {
-//     //     std::cout << "Found solution:" << std::endl;
-//     //     ss.getSolutionPath().print(std::cout);
-//     //     std::ofstream file("src/pendulumPath.txt");
-//     //     ss.getSolutionPath().asGeometric().printAsMatrix(file);
-//     //     file.close();
-//     // }
-// }
 
 void benchmarkPendulum(ompl::control::SimpleSetupPtr &/* ss */)
 {
@@ -201,7 +180,7 @@ int main(int /* argc */, char ** /* argv */)
             std::cin >> planner;
         } while (planner < 1 || planner > 3);
 
-        //planPendulum(ss, planner);
+        planPendulum(ss, planner);
     }
     // Benchmarking
     else if (choice == 2)
