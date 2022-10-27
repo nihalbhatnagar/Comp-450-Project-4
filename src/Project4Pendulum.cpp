@@ -18,6 +18,7 @@
 #include <ompl/control/ODESolver.h>
 #include <ompl/extensions/ode/OpenDESimpleSetup.h>
 #include <ompl/control/planners/rrt/RRT.h>
+#include <ompl/control/planners/kpiece/KPIECE1.h>
 
 // Your implementation of RG-RRT
 #include "RG-RRT.h"
@@ -109,8 +110,13 @@ ompl::control::SimpleSetupPtr createPendulum(double torque )
 
     //return ss;
 
-    auto planner = std::make_shared<ompl::control::RRT>(ss.getSpaceInformation());
+    auto planner = std::make_shared<ompl::control::KPIECE1>(ss.getSpaceInformation());
     ss.setPlanner(planner);
+
+
+    // auto planner = std::make_shared<ompl::control::RRT>(ss.getSpaceInformation());
+    // ss.setPlanner(planner);
+
 
     ob::PlannerStatus solved = ss.solve(1.0);
 
