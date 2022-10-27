@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from mpl_toolkits.mplot3d import Axes3D
 data = numpy.loadtxt('src/pendulumPath.txt')
+
 fig = plt.figure()
 ax = fig.gca()
 print(data)

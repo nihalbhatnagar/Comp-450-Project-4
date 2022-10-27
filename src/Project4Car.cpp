@@ -51,6 +51,7 @@ void makeStreet(std::vector<Rectangle> & /* obstacles */)
 ompl::control::SimpleSetupPtr createCar(std::vector<Rectangle> & /* obstacles */)
 {
     // TODO: Create and setup the car's state space, control space, validity checker, everything you need for planning.
+    
     return nullptr;
 }
 
