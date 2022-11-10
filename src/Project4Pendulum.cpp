@@ -19,6 +19,8 @@
 #include <ompl/extensions/ode/OpenDESimpleSetup.h>
 #include <ompl/control/planners/rrt/RRT.h>
 #include <ompl/control/planners/kpiece/KPIECE1.h>
+#include <ompl/tools/benchmark/Benchmark.h>
+#include <ompl/base/spaces/SE2StateSpace.h>
 
 // Your implementation of RG-RRT
 #include "RG-RRT.h"
@@ -29,7 +31,7 @@
 class PendulumProjection : public ompl::base::ProjectionEvaluator
 {
 public:
-    PendulumProjection(const ompl::base::StateSpace *space) : ProjectionEvaluator(space)
+    PendulumProjection(const ompl::base::StateSpacePtr &space) : ProjectionEvaluator(space)
     {
     }
 
@@ -38,9 +40,16 @@ public:
         return 2;
     }
 
-    void project(const ompl::base::State */* state */, Eigen::Ref<Eigen::VectorXd> /* projection */) const override
+    void project(const ompl::base::State *state, Eigen::Ref<Eigen::VectorXd> projection) const override
     {
         // TODO: Your projection for the pendulum
+        auto compound_state = state->as<ompl::base::CompoundState>();
+
+        const ompl::base::RealVectorStateSpace::StateType* r2;
+        r2 = compound_state->as<ompl::base::RealVectorStateSpace::StateType>(0);
+
+        projection[0] = r2->values[0];
+        projection[1] = r2->values[1];
     }
 };
 
@@ -77,9 +86,10 @@ ompl::control::SimpleSetupPtr createPendulum(double torque )
     // construct the state space we are planning in
     auto space(std::make_shared<ompl::base::RealVectorStateSpace>(2));
     ob::RealVectorBounds bounds(2);
-    bounds.setLow(-20);
-    bounds.setHigh(20);
+    bounds.setLow(-4);
+    bounds.setHigh(4);
     space->setBounds(bounds);
+    space->registerDefaultProjection(ob::ProjectionEvaluatorPtr(new PendulumProjection(space)));
 
     auto cm = std::make_shared<oc::RealVectorControlSpace>(space,1);
     ob::RealVectorBounds cbounds(1);
@@ -104,7 +114,7 @@ ompl::control::SimpleSetupPtr createPendulum(double torque )
     goal[0] = 1.5707;
     goal[1] = 0;
 
-    ss->setStartAndGoalStates(start, goal,1);
+    ss->setStartAndGoalStates(start, goal,.01);
 
     return ss;
 }
@@ -118,6 +128,9 @@ void planPendulum(ompl::control::SimpleSetupPtr &ss, int choice)
     } else if (choice == 2) {
         ss->setPlanner(std::make_shared<ompl::control::KPIECE1>(ss->getSpaceInformation()));
         filePath = "pendulumPathKPIECE1.txt";
+    } else if (choice == 3) {
+        ss->setPlanner(std::make_shared<ompl::control::RGRRT>(ss->getSpaceInformation()));
+        filePath = "pendulumPathRGRRT.txt";
     }
 
     ss->setup();
@@ -133,9 +146,31 @@ void planPendulum(ompl::control::SimpleSetupPtr &ss, int choice)
     }
 }
 
-void benchmarkPendulum(ompl::control::SimpleSetupPtr &/* ss */)
+void benchmarkPendulum(ompl::control::SimpleSetupPtr &ss )
 {
-    // TODO: Do some benchmarking for the pendulum
+    // // // setup benchmarking
+    std::string benchmark_name = "Pendulum Benchmark";
+    double runtime_limit = 60.0;
+    double memory_limit = 1000.0;
+    int run_count = 30;
+    ompl::tools::Benchmark::Request request(runtime_limit, memory_limit, run_count);
+    ompl::tools::Benchmark b(*ss, benchmark_name);
+
+    auto rrt = std::make_shared<ompl::control::RRT>(ss->getSpaceInformation());
+    rrt->setName("RRT");
+
+    auto kpiece = std::make_shared<ompl::control::KPIECE1>(ss->getSpaceInformation());
+    kpiece->setName("KPIECE");
+
+    auto rgrrt = std::make_shared<ompl::control::RGRRT>(ss->getSpaceInformation());
+    rgrrt->setName("RG-RRT");
+
+    b.addPlanner(rrt);
+    b.addPlanner(kpiece);
+    b.addPlanner(rgrrt);
+
+    b.benchmark(request);
+    b.saveResultsToFile();
 }
 
 int main(int /* argc */, char ** /* argv */)

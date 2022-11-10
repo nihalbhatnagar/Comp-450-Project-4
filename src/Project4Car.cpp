@@ -82,16 +82,28 @@ void makeStreet(std::vector<Rectangle> &obstacles)
     rect1.width = 2.0;
     rect1.height = 1.0;
     obstacles.push_back(rect1);
+
+    Rectangle rect2;
+    rect1.x = 2.0;
+    rect1.y = 2.0;
+    rect1.width = 1.0;
+    rect1.height = 2.0;
+    obstacles.push_back(rect2);
 }
 
 bool isStateValid(const ompl::control::SpaceInformation *si, const ompl::base::State *state, const std::vector<Rectangle> &obstacles){
+    // // Cast the state to a real vector state
+    // auto se2state = state->as<ompl::base::CompoundState>()->as<ompl::base::SE2StateSpace::StateType>(0);
+
+    // const ompl::base::RealVectorStateSpace::StateType* r2;
+    // r2 = se2state->as<ompl::base::RealVectorStateSpace::StateType>(0);
+
+    // return isValidStatePoint(r2, obstacles) && si->satisfiesBounds(state);
+
     // Cast the state to a real vector state
-    auto compound_state = state->as<ompl::base::CompoundState>();
+    auto se2state = state->as<ompl::base::CompoundState>()->as<ompl::base::SE2StateSpace::StateType>(0);
 
-    const ompl::base::RealVectorStateSpace::StateType* r2;
-    r2 = compound_state->as<ompl::base::RealVectorStateSpace::StateType>(0);
-
-    return isValidStatePoint(r2, obstacles) && si->satisfiesBounds(state);
+    return isValidStateSquare(se2state, 0.1, obstacles) && si->satisfiesBounds(state);
 }
 
 void carPostIntegration(const ompl::base::State* /*state*/, const ompl::control::Control * /*control*/, const double /*duration*/, ompl::base::State *result)
@@ -156,7 +168,7 @@ ompl::control::SimpleSetupPtr createCar(std::vector<Rectangle> & obstacles)
     goal[2] = 0;
     goal[3] = 6;
 
-    ss->setStartAndGoalStates(start, goal, 0.1);
+    ss->setStartAndGoalStates(start, goal, 0.15);
 
     return ss;
 }
@@ -170,10 +182,13 @@ void planCar(ompl::control::SimpleSetupPtr &ss, int choice)
     } else if (choice == 2) {
         ss->setPlanner(std::make_shared<ompl::control::KPIECE1>(ss->getSpaceInformation()));
         filePath = "carPathKPIECE1.txt";
+    } else if (choice == 3) {
+        ss->setPlanner(std::make_shared<ompl::control::RGRRT>(ss->getSpaceInformation()));
+        filePath = "carPathRGRRT.txt";
     }
 
     ss->setup();
-    ompl::base::PlannerStatus solved = ss->solve(10.0);
+    ompl::base::PlannerStatus solved = ss->solve(20.0);
     
     if(solved)
     {

@@ -8,6 +8,7 @@
 
 #include <ompl/base/goals/GoalSampleableRegion.h>
 #include <ompl/tools/config/SelfConfig.h>
+#include <ompl/control/spaces/RealVectorControlSpace.h>
 #include <limits>
 
 ompl::control::RGRRT::RGRRT(const SpaceInformationPtr &si) : base::Planner(si, "RGRRT")
@@ -77,9 +78,9 @@ void ompl::control::RGRRT::populateReachableSet(Motion *motion)
         // newControl->as<RealVectorControlSpace::ControlType>()->values[1] = 0;
 
         ompl::base::State *reachableState = siC_->allocState();
-        siC_->propagate(motion->state, ???, 1, reachableState);
-        if (si_->isValid(result)) {
-            states.push_back(result);
+        siC_->propagate(motion->state, newControl, 1, reachableState);
+        if (si_->isValid(reachableState)) {
+            tempReachableStates.push_back(reachableState);
         }
     }
 
@@ -128,6 +129,7 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
     while (ptc == false)
     {
         bool isValidQRand = false;
+        Motion *nmotion = nullptr;
         while (!isValidQRand) {
             /* sample random state (with goal biasing) AKA q_rand */
             if (goal_s && rng_.uniform01() < goalBias_ && goal_s->canSample())
@@ -136,14 +138,14 @@ ompl::base::PlannerStatus ompl::control::RGRRT::solve(const base::PlannerTermina
                 sampler_->sampleUniform(rstate);
 
             /* find closest state in the tree AKA q_near */
-            Motion *nmotion = nn_->nearest(rmotion);
+            nmotion = nn_->nearest(rmotion);
 
             double currDistance = distanceFunction(nmotion, rmotion);
 
             // if q_near is closer to q_rand than any state in R(q_near), then discard q_rand
             // otherwise, it is a valid q_rand
             for (base::State *reachableNmotionState : nmotion->reachableSetOfStates) {
-                if (si_>distance(rmotion->state, reachableNmotionState) < currDistance) {
+                if (si_->distance(rmotion->state, reachableNmotionState) < currDistance) {
                     isValidQRand = true;
                 }
             }
